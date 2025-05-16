@@ -57,7 +57,14 @@ exports.trelloNotification = onRequest(
       // Also handle GET requests from Trello for webhook validation
       if (req.method === 'GET') {
         console.log('Responding to GET request with 200 OK (likely Trello webhook validation)');
-        res.status(200).send('Webhook validation successful');
+        trelloIntegration.handleTrelloWebhookVerification(req, res);
+        return;
+      }
+      
+      // Only allow POST requests for events processing
+      if (req.method !== 'POST') {
+        console.log(`Method ${req.method} not allowed, only POST, GET and HEAD are supported`);
+        res.status(405).send('Method not allowed');
         return;
       }
       

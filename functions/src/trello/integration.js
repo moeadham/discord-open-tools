@@ -23,6 +23,12 @@ async function handleTrelloEvent(req, res, discordWebhookUrl) {
     // Format the message
     const embed = formatTrelloMessage(req.body);
     
+    // If embed is null, this is a filtered event type, so just acknowledge without sending to Discord
+    if (embed === null) {
+      res.status(200).send("Trello event filtered (notification not sent)");
+      return;
+    }
+    
     // Send to Discord
     const discordResponse = await sendDiscordMessage(discordWebhookUrl, embed);
     

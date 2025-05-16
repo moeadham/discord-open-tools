@@ -98,6 +98,75 @@ describe('Trello Integration Tests', () => {
       url: 'https://trello.com/b/def456/test-board'
     }
   };
+  
+  // Sample Trello attachment event payload (should be filtered)
+  const trelloAttachmentPayload = {
+    action: {
+      type: 'addAttachmentToCard',
+      memberCreator: {
+        fullName: 'Test User',
+        username: 'testuser'
+      },
+      data: {
+        card: {
+          id: 'card123',
+          name: 'Test Card',
+          shortLink: 'abc123'
+        },
+        attachment: {
+          id: 'attach123',
+          name: 'test.png',
+          url: 'https://example.com/test.png'
+        },
+        board: {
+          id: 'board123',
+          name: 'Test Board',
+          shortLink: 'def456'
+        }
+      }
+    },
+    model: {
+      id: 'board123',
+      name: 'Test Board',
+      url: 'https://trello.com/b/def456/test-board'
+    }
+  };
+  
+  // Sample Trello create checklist item payload (should be filtered)
+  const trelloCreateCheckItemPayload = {
+    action: {
+      type: 'createCheckItem',
+      memberCreator: {
+        fullName: 'Test User',
+        username: 'testuser'
+      },
+      data: {
+        card: {
+          id: 'card123',
+          name: 'Test Card',
+          shortLink: 'abc123'
+        },
+        checklist: {
+          id: 'checklist123',
+          name: 'Test Checklist'
+        },
+        checkItem: {
+          id: 'item123',
+          name: 'Test Item'
+        },
+        board: {
+          id: 'board123',
+          name: 'Test Board',
+          shortLink: 'def456'
+        }
+      }
+    },
+    model: {
+      id: 'board123',
+      name: 'Test Board',
+      url: 'https://trello.com/b/def456/test-board'
+    }
+  };
 
   it('should handle Trello card created events and forward to Discord', async () => {
     const functionsUrl = process.env.FUNCTIONS_URL;
@@ -259,5 +328,53 @@ describe('Trello Integration Tests', () => {
     const discordPayload = responseBody.discord_response.echo;
     expect(discordPayload).to.have.property('embeds');
     expect(discordPayload.embeds).to.be.an('array').that.has.lengthOf(1);
+  });
+  
+  it('should filter Trello attachment events and not send to Discord', async () => {
+    const functionsUrl = process.env.FUNCTIONS_URL;
+    if (!functionsUrl) {
+      throw new Error('FUNCTIONS_URL environment variable not set');
+    }
+
+    // Send a Trello attachment event
+    const response = await fetch(`${functionsUrl}/trelloNotification`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(trelloAttachmentPayload)
+    });
+
+    // Response should be successful
+    expect(response.status).to.equal(200);
+    
+    // The response should indicate filtering
+    const responseText = await response.text();
+    expect(responseText).to.include('filtered');
+    expect(responseText).to.not.include('discord_response');
+  });
+
+  it('should filter Trello checklist item events and not send to Discord', async () => {
+    const functionsUrl = process.env.FUNCTIONS_URL;
+    if (!functionsUrl) {
+      throw new Error('FUNCTIONS_URL environment variable not set');
+    }
+
+    // Send a Trello checklist item event
+    const response = await fetch(`${functionsUrl}/trelloNotification`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(trelloCreateCheckItemPayload)
+    });
+
+    // Response should be successful
+    expect(response.status).to.equal(200);
+    
+    // The response should indicate filtering
+    const responseText = await response.text();
+    expect(responseText).to.include('filtered');
+    expect(responseText).to.not.include('discord_response');
   });
 });

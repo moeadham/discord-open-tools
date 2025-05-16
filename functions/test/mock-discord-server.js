@@ -54,6 +54,23 @@ class MockDiscordServer {
         dateCreated: new Date().toISOString()
       });
     });
+    
+    // Trello board verification endpoint
+    this.app.get('/trello-mock-api/boards/:boardId', (req, res) => {
+      const boardId = req.params.boardId;
+      console.log('Mock Trello board verification:', boardId);
+      
+      // Return a successful board response
+      res.status(200).json({
+        id: boardId,
+        name: 'Test Board',
+        desc: 'This is a test board',
+        url: `https://trello.com/b/${boardId}/test-board`,
+        closed: false,
+        idOrganization: 'org123',
+        limits: {}
+      });
+    });
   }
   
   /**

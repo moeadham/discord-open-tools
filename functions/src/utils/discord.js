@@ -169,9 +169,40 @@ function formatGitHubMessage(payload, eventType) {
 /**
  * Create a Discord embed for Trello events
  * @param {Object} data - Trello event data
- * @returns {Object} Discord embed
+ * @returns {Object|null} Discord embed or null if notification should be filtered out
  */
 function formatTrelloMessage(data) {
+  if (!data.action || !data.action.type) {
+    return {
+      title: "Trello Activity",
+      description: "Unrecognized Trello event",
+      url: data.model?.url || "",
+      color: 0x0079BF, // Trello blue
+      timestamp: new Date().toISOString(),
+      footer: {
+        text: "Trello",
+        icon_url: "https://d2k1ftgv7pobq7.cloudfront.net/meta/u/res/images/trello-header-logos/76ceb1faa939ede03abacb6efacdde16/trello-logo-blue.svg"
+      },
+      fields: []
+    };
+  }
+
+  const action = data.action;
+  const actionType = action.type;
+  
+  // Skip unwanted notification types
+  const filteredTypes = [
+    "createCheckItem", 
+    "updateCheckItem", 
+    "addAttachmentToCard", 
+    "addChecklistToCard", 
+    "updateCheckItemStateOnCard"
+  ];
+  
+  if (filteredTypes.includes(actionType)) {
+    return null;
+  }
+
   const embed = {
     title: "",
     description: "",
@@ -186,138 +217,110 @@ function formatTrelloMessage(data) {
   };
 
   // Format based on action type
-  if (data.action && data.action.type) {
-    const action = data.action;
-    const actionType = action.type;
-    const memberName = action.memberCreator ? action.memberCreator.fullName : "Unknown";
-    
-    switch (actionType) {
-      case "createCard":
-        embed.title = "Card Created";
-        embed.description = `${memberName} created card [${action.data.card.name}](${data.model.url})`;
+  const memberName = action.memberCreator ? action.memberCreator.fullName : "Unknown";
+  
+  switch (actionType) {
+    case "createCard":
+      embed.title = "Card Created";
+      embed.description = `${memberName} created card [${action.data.card.name}](${data.model.url})`;
+      
+      if (action.data.list) {
+        embed.fields.push({
+          name: "List",
+          value: action.data.list.name,
+          inline: true
+        });
+      }
+      break;
+      
+    case "updateCard":
+      if (action.data.listBefore && action.data.listAfter) {
+        // Card moved
+        embed.title = "Card Moved";
+        embed.description = `${memberName} moved card [${action.data.card.name}](${data.model.url})`;
         
-        if (action.data.list) {
-          embed.fields.push({
-            name: "List",
-            value: action.data.list.name,
+        embed.fields.push(
+          {
+            name: "From",
+            value: action.data.listBefore.name,
             inline: true
-          });
-        }
-        break;
-        
-      case "updateCard":
-        if (action.data.listBefore && action.data.listAfter) {
-          // Card moved
-          embed.title = "Card Moved";
-          embed.description = `${memberName} moved card [${action.data.card.name}](${data.model.url})`;
-          
-          embed.fields.push(
-            {
-              name: "From",
-              value: action.data.listBefore.name,
-              inline: true
-            },
-            {
-              name: "To",
-              value: action.data.listAfter.name,
-              inline: true
-            }
-          );
-        } else if (action.data.old && action.data.old.hasOwnProperty("due")) {
-          // Due date changed
-          embed.title = "Due Date Changed";
-          embed.description = `${memberName} updated due date for card [${action.data.card.name}](${data.model.url})`;
-          
-          const newDue = action.data.card.due ? new Date(action.data.card.due).toLocaleString() : "None";
-          const oldDue = action.data.old.due ? new Date(action.data.old.due).toLocaleString() : "None";
-          
-          embed.fields.push(
-            {
-              name: "From",
-              value: oldDue,
-              inline: true
-            },
-            {
-              name: "To",
-              value: newDue,
-              inline: true
-            }
-          );
-        } else {
-          // Other card update
-          embed.title = "Card Updated";
-          embed.description = `${memberName} updated card [${action.data.card.name}](${data.model.url})`;
-        }
-        break;
-        
-      case "commentCard":
-        embed.title = "Comment Added";
-        embed.description = `${memberName} commented on card [${action.data.card.name}](${data.model.url})`;
-        
-        if (action.data.text) {
-          // Truncate comment if too long
-          const comment = action.data.text.length > 1000 
-            ? action.data.text.substring(0, 997) + "..." 
-            : action.data.text;
-            
-          embed.fields.push({
-            name: "Comment",
-            value: comment
-          });
-        }
-        break;
-        
-      case "addMemberToCard":
-        embed.title = "Member Added to Card";
-        embed.description = `${memberName} added ${action.data.member.name} to card [${action.data.card.name}](${data.model.url})`;
-        break;
-        
-      case "removeMemberFromCard":
-        embed.title = "Member Removed from Card";
-        embed.description = `${memberName} removed ${action.data.member.name} from card [${action.data.card.name}](${data.model.url})`;
-        break;
-        
-      case "addAttachmentToCard":
-        embed.title = "Attachment Added";
-        embed.description = `${memberName} added an attachment to card [${action.data.card.name}](${data.model.url})`;
-        
-        if (action.data.attachment) {
-          embed.fields.push({
-            name: "Attachment",
-            value: action.data.attachment.name,
+          },
+          {
+            name: "To",
+            value: action.data.listAfter.name,
             inline: true
-          });
-          
-          if (action.data.attachment.url) {
-            embed.fields.push({
-              name: "URL",
-              value: action.data.attachment.url,
-              inline: true
-            });
           }
-        }
-        break;
+        );
+      } else if (action.data.old && action.data.old.hasOwnProperty("due")) {
+        // Due date changed
+        embed.title = "Due Date Changed";
+        embed.description = `${memberName} updated due date for card [${action.data.card.name}](${data.model.url})`;
         
-      case "addLabelToCard":
-        embed.title = "Label Added";
-        embed.description = `${memberName} added label to card [${action.data.card.name}](${data.model.url})`;
+        const newDue = action.data.card.due ? new Date(action.data.card.due).toLocaleString() : "None";
+        const oldDue = action.data.old.due ? new Date(action.data.old.due).toLocaleString() : "None";
         
-        if (action.data.label) {
-          embed.fields.push({
-            name: "Label",
-            value: action.data.label.name || action.data.label.color,
+        embed.fields.push(
+          {
+            name: "From",
+            value: oldDue,
             inline: true
-          });
-        }
-        break;
-        
-      default:
-        embed.title = "Trello Activity";
-        embed.description = `${memberName} performed action: ${actionType}`;
-    }
-  } else {
-    embed.title = "Trello Activity";
-    embed.description = "Unrecognized Trello event";
+          },
+          {
+            name: "To",
+            value: newDue,
+            inline: true
+          }
+        );
+      } else {
+        // Other card update
+        embed.title = "Card Updated";
+        embed.description = `${memberName} updated card [${action.data.card.name}](${data.model.url})`;
+      }
+      break;
+      
+    case "commentCard":
+      embed.title = "Comment Added";
+      embed.description = `${memberName} commented on card [${action.data.card.name}](${data.model.url})`;
+      
+      if (action.data.text) {
+        // Truncate comment if too long
+        const comment = action.data.text.length > 1000 
+          ? action.data.text.substring(0, 997) + "..." 
+          : action.data.text;
+          
+        embed.fields.push({
+          name: "Comment",
+          value: comment
+        });
+      }
+      break;
+      
+    case "addMemberToCard":
+      embed.title = "Member Added to Card";
+      embed.description = `${memberName} added ${action.data.member.name} to card [${action.data.card.name}](${data.model.url})`;
+      break;
+      
+    case "removeMemberFromCard":
+      embed.title = "Member Removed from Card";
+      embed.description = `${memberName} removed ${action.data.member.name} from card [${action.data.card.name}](${data.model.url})`;
+      break;
+      
+    case "addLabelToCard":
+      embed.title = "Label Added";
+      embed.description = `${memberName} added label to card [${action.data.card.name}](${data.model.url})`;
+      
+      if (action.data.label) {
+        embed.fields.push({
+          name: "Label",
+          value: action.data.label.name || action.data.label.color,
+          inline: true
+        });
+      }
+      break;
+      
+    default:
+      embed.title = "Trello Activity";
+      embed.description = `${memberName} performed action: ${actionType}`;
   }
 
   return embed;
